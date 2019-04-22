@@ -2,7 +2,7 @@ var express = require('express');//import
 var app =express();
 var http=require("http").Server(app);
 var io=require('socket.io')(http);
-var port=5000;
+var port=process.env.PORT || 5000
 
 YT3_API_KEY = "AIzaSyBnI68oxWGCWu3Qf79lCgPtUDws-HwLpeg"
 const connections = [];
