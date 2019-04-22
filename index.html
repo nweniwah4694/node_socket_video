@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <style>
+    .vid-list-container {
+      width: 640px;
+      overflow: hidden;
+      margin-top: 20px;
+      padding-bottom: 20px;
+    }
+
+    .vid-list {
+      width: 100%;
+      display: table;
+      padding: 0;
+    }
+
+    .vid-item {
+       display: block;
+       width: 148px;
+       height: 170px;
+       float: left;
+       margin: 0;
+       padding: 10px;
+    }
+
+    .thumb {
+        overflow: hidden;
+        height: 110px;
+    }
+
+    .thumb img {
+      width: 100%;
+      position: relative;
+      top: -13px;
+    }
+
+    .vid-item .desc {
+      color: #21A1D2;
+      font-size: 15px;
+      margin-top: 5px;
+    }
+
+    .arrows {
+      position: relative;
+      width: 100%;
+    }
+
+    .arrow-left {
+      color: #fff;
+      position: absolute;
+      background: #777;
+      padding: 15px;
+      left: -25px;
+      top: -130px;
+      z-index: 99;
+      cursor: pointer;
+    }
+
+    .arrow-right {
+      color: #fff;
+      position: absolute;
+      background: #777;
+      padding: 15px;
+      right: -25px;
+      top: -130px;
+      z-index: 100;
+      cursor: pointer;
+    }
+
+    .ghost-button-full-color {
+       float: right;
+       display: inline-block;
+       width: 25px;
+       padding-bottom: 10px;
+       color: #000;
+       background-color: transparent;
+       text-align: center;
+       outline: none;
+       text-decoration: none;
+       transition: color 0.3s ease-out, background-color 0.3s ease-out, border-color 0.3s ease-out;
+    }
+  </style>
+</head>
+<body>
+ <div class="container">
+    <h1 style="text-align: center;background-color: #eee;padding: 20px;margin-bottom: 40px;">
+      Node js Socket io Video Player
+    </h1>  
+     <!-- Video player -->
+    <div id="embed-code"></div>
+    <div id="player"></div>
+     <!-- Button group -->
+    <div style="margin-top: 30px;">        
+      <input type="Video" style="max-width: 200px; margin-right: .5rem; margin-bottom: .5rem; float: left;" class="form-control" id="inputVideoId" placeholder="Video ID / URL">
+      <button onclick="playPauseVideo()" class="btn btn-primary">Play/Pause</button>
+      <button onclick="changeVideoParse()" class="btn btn-primary"><i class="fas fa-exchange-alt"></i> Search Video</button>
+      <button onclick="enqueueVideoParse()" class="btn btn-primary"><i class="fas fa-plus"></i> Add to Playlist</button>
+    </div>  
+    <!-- Playlist -->
+    <div id="visual-queue" class="vid-list-container">
+      <ul class="vid-list" id="vidlist" style="list-style: none;">                            
+      </ul>
+    </div>
+    <!-- JQuery -->
+    <script src="https://code.jquery.com/jquery-latest.min.js"></script>
+      <!-- Font awesome -->
+    <script defer src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      var socket = io.connect();
+      var initial = 1;
+      var $vidlist = $('#vidlist');
+
+      $(function() {  
+
+        // play video
+        socket.on('playing video', function(msg) {
+
+          player.playVideo();
+        });   
+
+        // pause video
+        socket.on('pausing video', function(msg) {
+
+          player.pauseVideo();
+        });
+
+        // change video client
+        socket.on('changeVideoClient', function(data) {
+
+          var videoId = data.videoId;
+          player.loadVideoById(videoId); 
+        });    
+
+        //get video title
+        socket.on('get title', function(data, callback) {
+
+          var videoId = data.videoId
+          $.get(
+              "https://www.googleapis.com/youtube/v3/videos", {
+                  part: 'snippet',
+                  id: videoId,
+                  key: data.api_key
+              },
+              function(data) {
+                  socket.emit('add playList', {
+                      videoId: videoId,
+                      title: data.items[0].snippet.title
+                  });                   
+              }
+          )
+        });   
+
+        // update the playlist
+        socket.on('get vidlist', function(data) {
+
+            var html = ''
+            if (data.length > 0) {
+                for (i = 0; i < data.length; i++) {
+                    html += '<li class="vid-item" style="color: red;"><div class="thumb"><a href="javascript: removeAt(' + i + ')" class="ghost-button-full-color"><i class="far fa-times-circle"></i></a><a href="javascript: playAt(' + i +
+                        ')"><img src="http://img.youtube.com/vi/' + data[i].videoId + '/0.jpg"></a></div><a href="javascript: playAt(' + i + ')" class="desc">' + data[i].title + '</a></li>'
+                }
+            } else {
+                html += '<li class="vid-item"></li>'
+            }
+            $vidlist.html(html);
+        });   
+
+      });
+
+      // 2. This code loads the IFrame Player API code asynchronously.
+      var tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      // 3. This function creates an <iframe> (and YouTube player)
+      //    after the API code downloads.
+      var player;
+      function onYouTubeIframeAPIReady() {
+        
+        player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: 'M7lc1UVf-VE',         
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+
+      function onPlayerReady(event) {
+
+        event.target.playVideo();
+      }
+      
+      function onPlayerStateChange(event) {
+
+        //check playing or pause or end state
+        if(event.data == YT.PlayerState.PLAYING) {
+
+          initial = 1;
+          parallelPlayVideo();//all browser play
+        }
+
+        if(event.data == YT.PlayerState.PAUSED) {
+
+          initial = 2;
+          parallelPauseVideo();//all browser pause
+        }
+
+        if(event.data == YT.PlayerState.ENDED) { 
+
+          playNextVideo();//play next video after one is finished
+        }
+      }
+
+      function stopVideo() {
+
+        player.stopVideo();
+      }
+
+      //play and pause video using play/pause button
+      function playPauseVideo () {
+
+        if(initial == 1) { 
+
+          parallelPauseVideo();
+        }
+        if(initial == 2) {
+
+          parallelPlayVideo();          
+        }
+      }
+
+      function parallelPlayVideo() {
+
+       socket.emit('play video', 'Hello');
+      }
+
+      function parallelPauseVideo() {
+
+        socket.emit('pause video', 'Hello');
+      }
+
+      //search and play video
+      function changeVideoParse() {
+
+        var videoId = document.getElementById("inputVideoId").value;
+        var parseVideoId = idParse(videoId);
+
+        if (parseVideoId != "invalid") {     
+
+          socket.emit('change video', {
+            videoId: parseVideoId
+          });
+        } else {
+
+          invalidURL()
+        }
+      }
+     
+      // get id from video link
+      function idParse(videoId) {
+        // user enters a full link
+        if (videoId.includes("https://") || videoId.includes("http://") || videoId.includes(".com/")) {
+          // Do some string processing with regex      
+          if (videoId.includes("youtu.be")) {
+
+              var myRegex = /.+youtu\.be\/([A-Za-z0-9\-_]+)/g
+              var match = myRegex.exec(videoId)
+              if (match != null) {
+                  return match[1]
+              }
+          } else {
+
+            var myRegex = /.+watch\?v=([A-Za-z0-9\-_]+)/g
+            var match = myRegex.exec(videoId)
+            if (match != null) {
+                return match[1]
+            }
+          }
+          videoId = "invalid"
+        }
+        return videoId
+      }
+
+      //add video playlist
+      function enqueueVideoParse() {
+
+        var videoId = document.getElementById("inputVideoId").value;              
+        var realVideoId = idParse(videoId)
+        if (realVideoId != "invalid") {
+
+          socket.emit('enqueue video', {
+            videoId: realVideoId
+          });
+        } else {
+
+          invalidURL()
+        }
+      }
+
+      // remove the video from the queue at idx
+      function removeAt(idx) {
+
+        socket.emit('remove at', {
+            idx: idx
+        })
+      }
+
+      // play the video from the queue at idx
+      function playAt(idx) {
+          socket.emit('play at', {
+              idx: idx
+          }, function(data) {
+              var videoId = data.videoId
+              // change the video
+              socket.emit('change video', {
+                  videoId: videoId
+              })
+          })
+      }
+
+      function playNextVideo() {  
+
+        socket.emit('play next video', function(data) {
+          var videoId = data.videoId
+          // Change the video
+          socket.emit('change video', {
+              videoId: videoId
+          })
+        });            
+      }
+    </script>
+</body>
+</html>
+
